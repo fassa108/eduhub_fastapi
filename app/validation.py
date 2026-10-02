@@ -1,9 +1,13 @@
+import io
+import zipfile
+
 from fastapi import UploadFile
 
 from app.config import settings
 from app.extraction import EXTRACTEURS
 
-SIGNATURES = {"pdf": b"%PDF", "docx": b"PK\x03\x04", "pptx": b"PK\x03\x04"}
+SIGNATURE_ZIP = b"PK\x03\x04"
+SIGNATURES = {"pdf": b"%PDF", "docx": SIGNATURE_ZIP, "pptx": SIGNATURE_ZIP}
 
 
 class ErreurValidation(Exception):
@@ -28,6 +32,10 @@ class TexteTropLong(ErreurValidation):
 
 class ContenuInvalide(ErreurValidation):
     status_code = 422
+
+
+class ArchiveTropVolumineuse(ErreurValidation):
+    status_code = 413
 
 
 def extension_de(nom: str) -> str:
@@ -58,7 +66,23 @@ def lire_fichier_valide(fichier: UploadFile) -> bytes:
     if signature and not contenu.startswith(signature):
         raise ContenuInvalide(f"'{nom}' n'est pas un vrai fichier {extension}")
 
+    if signature == SIGNATURE_ZIP:
+        _verifier_archive(nom, contenu)
+
     return contenu
+
+
+def _verifier_archive(nom: str, contenu: bytes) -> None:
+    """DOCX et PPTX sont des ZIP : on borne leur taille une fois décompressés."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(contenu)) as archive:
+            taille = sum(f.file_size for f in archive.infolist())
+    except zipfile.BadZipFile as e:
+        raise ContenuInvalide(f"'{nom}' est corrompu") from e
+    if taille > settings.taille_decompressee_max_mo * 1024 * 1024:
+        raise ArchiveTropVolumineuse(
+            f"'{nom}' dépasse {settings.taille_decompressee_max_mo} Mo une fois décompressé"
+        )
 
 
 def valider_longueur_texte(texte: str) -> None:

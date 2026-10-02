@@ -1,8 +1,15 @@
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+import hmac
+
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.extraction import ExtractionError, FormatNonSupporte, extraire_texte
+from app.extraction import (
+    ExtractionError,
+    FormatNonSupporte,
+    TropDePages,
+    extraire_texte_avec_delai,
+)
 from app.generation import Difficulte, GenerationInvalide, LLMIndisponible, generer_quiz
 from app.schemas import QuizGenere
 from app.validation import (
@@ -13,6 +20,16 @@ from app.validation import (
 )
 
 app = FastAPI(title="Synapse IA")
+
+
+def verifier_jeton(x_service_token: str | None = Header(default=None)) -> None:
+    """Seul Django (qui connaît le jeton partagé) peut appeler la génération."""
+    if not settings.service_token:
+        raise HTTPException(status_code=503, detail="Jeton de service non configuré")
+    if not x_service_token or not hmac.compare_digest(
+        x_service_token.encode(), settings.service_token.encode()
+    ):
+        raise HTTPException(status_code=401, detail="Jeton de service invalide")
 
 
 def _erreur(status: int, e: Exception) -> JSONResponse:
@@ -27,6 +44,11 @@ async def gerer_validation(request, e):
 @app.exception_handler(FormatNonSupporte)
 async def gerer_format(request, e):
     return _erreur(415, e)
+
+
+@app.exception_handler(TropDePages)
+async def gerer_trop_de_pages(request, e):
+    return _erreur(413, e)
 
 
 @app.exception_handler(ExtractionError)
@@ -49,7 +71,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/generate/quiz", response_model=QuizGenere)
+@app.post("/generate/quiz", response_model=QuizGenere, dependencies=[Depends(verifier_jeton)])
 def generate_quiz(
     fichiers: list[UploadFile] = File(default=[]),
     texte: str | None = Form(default=None),
@@ -59,7 +81,7 @@ def generate_quiz(
     valider_nombre_fichiers(fichiers)
 
     morceaux = [
-        extraire_texte(f.filename, lire_fichier_valide(f)) for f in fichiers
+        extraire_texte_avec_delai(f.filename, lire_fichier_valide(f)) for f in fichiers
     ]
     if texte and texte.strip():
         morceaux.append(texte.strip())

@@ -1,9 +1,14 @@
 import io
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import TimeoutError as DelaiDepasse
 
 import pymupdf
 from docx import Document
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+from app.config import settings
 
 
 class ExtractionError(Exception):
@@ -22,6 +27,19 @@ class TexteVide(ExtractionError):
     pass
 
 
+class TropDePages(ExtractionError):
+    pass
+
+
+class ExtractionTropLongue(ExtractionError):
+    pass
+
+
+def _verifier_nb_pages(nb: int, unite: str) -> None:
+    if nb > settings.nb_pages_max:
+        raise TropDePages(f"{nb} {unite}, maximum {settings.nb_pages_max}")
+
+
 def extraire_txt(contenu: bytes) -> str:
     try:
         return contenu.decode("utf-8")
@@ -31,10 +49,15 @@ def extraire_txt(contenu: bytes) -> str:
 
 def extraire_pdf(contenu: bytes) -> str:
     try:
-        with pymupdf.open(stream=contenu, filetype="pdf") as document:
-            pages = [page.get_text() for page in document]
+        document = pymupdf.open(stream=contenu, filetype="pdf")
     except Exception as e:
         raise FichierIllisible("PDF illisible ou corrompu") from e
+    with document:
+        _verifier_nb_pages(document.page_count, "pages")
+        try:
+            pages = [page.get_text() for page in document]
+        except Exception as e:
+            raise FichierIllisible("PDF illisible ou corrompu") from e
     return "\n".join(pages)
 
 
@@ -71,6 +94,7 @@ def extraire_pptx(contenu: bytes) -> str:
     except Exception as e:
         raise FichierIllisible("PPTX illisible ou corrompu") from e
 
+    _verifier_nb_pages(len(presentation.slides), "diapositives")
     lignes = []
     for numero, diapo in enumerate(presentation.slides, start=1):
         textes = _textes_des_formes(diapo.shapes)
@@ -102,3 +126,20 @@ def extraire_texte(nom: str, contenu: bytes) -> str:
     if not texte:
         raise TexteVide(f"Aucun texte extractible dans '{nom}'")
     return texte
+
+
+def extraire_texte_avec_delai(nom: str, contenu: bytes, extracteur=extraire_texte) -> str:
+    """
+    Extrait dans un processus à part, arrêté net au-delà du délai : un
+    fichier piégé ne peut pas bloquer le service.
+    """
+    contexte = multiprocessing.get_context("forkserver")
+    with ProcessPoolExecutor(max_workers=1, mp_context=contexte) as pool:
+        futur = pool.submit(extracteur, nom, contenu)
+        try:
+            return futur.result(timeout=settings.extraction_delai_s)
+        except DelaiDepasse:
+            pool.kill_workers()
+            raise ExtractionTropLongue(
+                f"Extraction de '{nom}' trop longue (plus de {settings.extraction_delai_s} s)"
+            ) from None
