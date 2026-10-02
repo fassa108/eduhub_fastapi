@@ -25,3 +25,14 @@ class QuestionGeneree(BaseModel):
 
 class QuizGenere(BaseModel):
     questions: list[QuestionGeneree] = Field(min_length=1)
+
+class SectionFiche(BaseModel):
+    titre: str = Field(min_length=1)
+    points: list[str] = Field(min_length=1)
+
+
+class FicheGeneree(BaseModel):
+    titre: str = Field(min_length=1)
+    resume: str = Field(min_length=1)
+    sections: list[SectionFiche] = Field(min_length=1)
+    a_retenir: list[str] = Field(min_length=1)

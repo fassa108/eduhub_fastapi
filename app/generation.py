@@ -1,12 +1,12 @@
-from functools import cache
+from functools import cache, partial
 from typing import Literal
 
 from google import genai
 from google.genai import errors, types
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.config import settings
-from app.schemas import QuizGenere
+from app.schemas import FicheGeneree, QuizGenere
 
 Difficulte = Literal["facile", "moyen", "difficile"]
 
@@ -21,7 +21,7 @@ CONSIGNES_DIFFICULTE = {
 
 
 class GenerationInvalide(Exception):
-    """Le LLM n'a pas produit un quiz valide après plusieurs essais."""
+    """Le LLM n'a pas produit un résultat valide après plusieurs essais."""
 
 
 class LLMIndisponible(Exception):
@@ -47,15 +47,15 @@ def _client() -> genai.Client:
     )
 
 
-def appeler_llm(prompt: str) -> str:
-    """Appelle Gemini en imposant le schéma JSON du quiz."""
+def appeler_llm(prompt: str, schema: type[BaseModel] = QuizGenere) -> str:
+    """Appelle Gemini en imposant le schéma JSON attendu."""
     try:
         reponse = _client().models.generate_content(
             model=settings.llm_model,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_json_schema=QuizGenere.model_json_schema(),
+                response_json_schema=schema.model_json_schema(),
             ),
         )
     except errors.APIError as e:
@@ -63,6 +63,20 @@ def appeler_llm(prompt: str) -> str:
     except Exception as e:
         raise LLMIndisponible("Le LLM ne répond pas") from e
     return reponse.text or ""
+
+
+def construire_prompt_fiche(texte: str) -> str:
+    return (
+        "Tu es un assistant pédagogique. À partir du cours ci-dessous, rédige "
+        "une fiche de révision en français pour un apprenant.\n\n"
+        "Règles :\n"
+        '- "resume" : deux ou trois phrases qui situent le sujet.\n'
+        '- "sections" : les grandes notions du cours, chacune avec des points '
+        "courts et précis (définitions, règles, exemples).\n"
+        '- "a_retenir" : l\'essentiel en quelques points.\n'
+        "- Base-toi uniquement sur le cours fourni.\n\n"
+        f"Cours :\n{texte}"
+    )
 
 
 def construire_prompt(texte: str, nb_questions: int, difficulte: Difficulte) -> str:
@@ -89,6 +103,18 @@ def isoler_json(brut: str) -> str:
     return brut[debut : fin + 1]
 
 
+def _generer(prompt: str, modele: type[BaseModel], llm) -> BaseModel:
+    """Appelle le LLM et valide sa réponse ; réessaie si elle est invalide."""
+    for _ in range(settings.max_essais):
+        brut = llm(prompt)
+        try:
+            return modele.model_validate_json(isoler_json(brut))
+        except ValidationError:
+            continue
+
+    raise GenerationInvalide(f"Réponse du LLM invalide après {settings.max_essais} essais")
+
+
 def generer_quiz(
     texte: str,
     nb_questions: int = 5,
@@ -96,12 +122,11 @@ def generer_quiz(
     llm=appeler_llm,
 ) -> QuizGenere:
     prompt = construire_prompt(texte[: settings.max_chars], nb_questions, difficulte)
+    return _generer(prompt, QuizGenere, llm)
 
-    for _ in range(settings.max_essais):
-        brut = llm(prompt)
-        try:
-            return QuizGenere.model_validate_json(isoler_json(brut))
-        except ValidationError:
-            continue
 
-    raise GenerationInvalide(f"Quiz invalide après {settings.max_essais} essais")
+def generer_fiche(
+    texte: str,
+    llm=partial(appeler_llm, schema=FicheGeneree),
+) -> FicheGeneree:
+    return _generer(construire_prompt_fiche(texte[: settings.max_chars]), FicheGeneree, llm)

@@ -8,6 +8,7 @@ from app.generation import (
     LLMIndisponible,
     _client,
     appeler_llm,
+    generer_fiche,
     generer_quiz,
 )
 
@@ -62,3 +63,19 @@ def test_erreur_de_l_api(monkeypatch):
     monkeypatch.setattr(generation, "_client", lambda: ClientEnErreur())
     with pytest.raises(LLMIndisponible, match="429"):
         appeler_llm("prompt")
+
+
+FICHE_VALIDE = """{"titre": "Django", "resume": "Un framework web Python.",
+"sections": [{"titre": "Architecture", "points": ["Motif MVT"]}],
+"a_retenir": ["Django suit le motif MVT"]}"""
+
+
+def test_fiche_valide():
+    fiche = generer_fiche("cours", llm=lambda prompt: FICHE_VALIDE)
+    assert fiche.sections[0].points == ["Motif MVT"]
+
+
+def test_fiche_sans_section_rejetee():
+    reponses = iter(['{"titre": "Django", "resume": "x", "sections": [], "a_retenir": ["x"]}', FICHE_VALIDE])
+    fiche = generer_fiche("cours", llm=lambda prompt: next(reponses))
+    assert fiche.titre == "Django"

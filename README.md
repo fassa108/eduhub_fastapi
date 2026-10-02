@@ -1,6 +1,6 @@
 # EduHub — service IA
 
-Service FastAPI qui génère des quiz à partir de supports de cours (PDF, DOCX, PPTX, TXT ou texte brut). Il est appelé par le backend Django d'EduHub, jamais directement par le navigateur.
+Service FastAPI qui génère des quiz et des fiches de révision à partir de supports de cours (PDF, DOCX, PPTX, TXT ou texte brut). Il est appelé par le backend Django d'EduHub, jamais directement par le navigateur.
 
 ## Lancer en local
 
@@ -55,5 +55,6 @@ Toutes les valeurs se règlent dans `.env` (voir `.env.example`) ; les valeurs p
 
 - `GET /health` : état du service.
 - `POST /generate/quiz` (jeton requis) : fichiers (`fichiers`) et/ou texte (`texte`), nombre de questions (`nb_questions`), difficulté (`difficulte` : `facile`, `moyen` ou `difficile`). Renvoie un quiz validé (questions à choix unique ou multiple, avec explication).
+- `POST /generate/fiche` (jeton requis) : fichiers et/ou texte. Renvoie une fiche de révision (titre, résumé, sections en points, à retenir).
 
 Codes d'erreur : `401` jeton invalide, `413` fichier ou texte trop gros, `415` format non supporté, `422` fichier illisible, `502` quiz invalide après plusieurs essais, `503` LLM injoignable (clé absente, quota atteint, délai dépassé) ou jeton non configuré.

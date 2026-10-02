@@ -108,3 +108,8 @@ def test_extraction_arretee_au_dela_du_delai(monkeypatch):
 
 def test_extraction_dans_un_processus_a_part():
     assert extraire_texte_avec_delai("cours.txt", "Bonjour".encode()) == "Bonjour"
+
+
+def test_fiche_jeton_requis(jeton):
+    reponse = client.post("/generate/fiche", data={"texte": "cours"})
+    assert reponse.status_code == 401

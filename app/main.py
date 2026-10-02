@@ -10,8 +10,14 @@ from app.extraction import (
     TropDePages,
     extraire_texte_avec_delai,
 )
-from app.generation import Difficulte, GenerationInvalide, LLMIndisponible, generer_quiz
-from app.schemas import QuizGenere
+from app.generation import (
+    Difficulte,
+    GenerationInvalide,
+    LLMIndisponible,
+    generer_fiche,
+    generer_quiz,
+)
+from app.schemas import FicheGeneree, QuizGenere
 from app.validation import (
     ErreurValidation,
     lire_fichier_valide,
@@ -71,13 +77,8 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/generate/quiz", response_model=QuizGenere, dependencies=[Depends(verifier_jeton)])
-def generate_quiz(
-    fichiers: list[UploadFile] = File(default=[]),
-    texte: str | None = Form(default=None),
-    nb_questions: int = Form(default=5, ge=1, le=settings.nb_questions_max),
-    difficulte: Difficulte = Form(default="moyen"),
-):
+def _texte_des_sources(fichiers: list[UploadFile], texte: str | None) -> str:
+    """Texte extrait des fichiers, plus le texte brut éventuel, validé."""
     valider_nombre_fichiers(fichiers)
 
     morceaux = [
@@ -91,5 +92,22 @@ def generate_quiz(
 
     texte_complet = "\n\n".join(morceaux)
     valider_longueur_texte(texte_complet)
+    return texte_complet
 
-    return generer_quiz(texte_complet, nb_questions, difficulte)
+
+@app.post("/generate/quiz", response_model=QuizGenere, dependencies=[Depends(verifier_jeton)])
+def generate_quiz(
+    fichiers: list[UploadFile] = File(default=[]),
+    texte: str | None = Form(default=None),
+    nb_questions: int = Form(default=5, ge=1, le=settings.nb_questions_max),
+    difficulte: Difficulte = Form(default="moyen"),
+):
+    return generer_quiz(_texte_des_sources(fichiers, texte), nb_questions, difficulte)
+
+
+@app.post("/generate/fiche", response_model=FicheGeneree, dependencies=[Depends(verifier_jeton)])
+def generate_fiche(
+    fichiers: list[UploadFile] = File(default=[]),
+    texte: str | None = Form(default=None),
+):
+    return generer_fiche(_texte_des_sources(fichiers, texte))
