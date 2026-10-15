@@ -36,3 +36,54 @@ class FicheGeneree(BaseModel):
     resume: str = Field(min_length=1)
     sections: list[SectionFiche] = Field(min_length=1)
     a_retenir: list[str] = Field(min_length=1)
+
+
+# ─── Accompagnement d'un apprenant en difficulté ─────────────────────────────
+
+class BriefAccompagnement(BaseModel):
+    titre: str = Field(min_length=1, max_length=255)
+    statut: Literal["en_retard", "en_cours"]
+    date_limite: str = Field(max_length=40)
+    description: str = Field(default="", max_length=4000)
+    modalites_evaluation: str = Field(default="", max_length=3000)
+    livrables_attendus: str = Field(default="", max_length=3000)
+
+
+class CompetenceAccompagnement(BaseModel):
+    competence: str = Field(min_length=1, max_length=255)
+    niveau: str = Field(default="", max_length=100)
+    description: str = Field(default="", max_length=1000)
+    brief: str = Field(default="", max_length=255)
+
+
+class DemandeAccompagnement(BaseModel):
+    """Situation d'un apprenant, anonymisée par Django (ni nom ni email)."""
+
+    signaux: list[str] = Field(min_length=1, max_length=10)
+    briefs: list[BriefAccompagnement] = Field(default=[], max_length=10)
+    competences_non_acquises: list[CompetenceAccompagnement] = Field(default=[], max_length=30)
+    commentaires_formateur: list[str] = Field(default=[], max_length=10)
+    progression_pct: int | None = Field(default=None, ge=0, le=100)
+    moyenne_promotion_pct: int | None = Field(default=None, ge=0, le=100)
+
+
+class SuggestionFormateur(BaseModel):
+    action: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
+class EtapePlan(BaseModel):
+    titre: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+    brief: str | None = None
+
+
+class PlanApprenant(BaseModel):
+    message: str = Field(min_length=1)
+    etapes: list[EtapePlan] = Field(min_length=1)
+
+
+class AccompagnementGenere(BaseModel):
+    diagnostic: str = Field(min_length=1)
+    suggestions_formateur: list[SuggestionFormateur] = Field(min_length=1)
+    plan_apprenant: PlanApprenant

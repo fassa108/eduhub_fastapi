@@ -14,10 +14,11 @@ from app.generation import (
     Difficulte,
     GenerationInvalide,
     LLMIndisponible,
+    generer_accompagnement,
     generer_fiche,
     generer_quiz,
 )
-from app.schemas import FicheGeneree, QuizGenere
+from app.schemas import AccompagnementGenere, DemandeAccompagnement, FicheGeneree, QuizGenere
 from app.validation import (
     ErreurValidation,
     lire_fichier_valide,
@@ -111,3 +112,12 @@ def generate_fiche(
     texte: str | None = Form(default=None),
 ):
     return generer_fiche(_texte_des_sources(fichiers, texte))
+
+
+@app.post(
+    "/generate/accompagnement",
+    response_model=AccompagnementGenere,
+    dependencies=[Depends(verifier_jeton)],
+)
+def generate_accompagnement(demande: DemandeAccompagnement):
+    return generer_accompagnement(demande)

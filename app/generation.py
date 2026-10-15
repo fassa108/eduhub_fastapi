@@ -6,7 +6,7 @@ from google.genai import errors, types
 from pydantic import BaseModel, ValidationError
 
 from app.config import settings
-from app.schemas import FicheGeneree, QuizGenere
+from app.schemas import AccompagnementGenere, DemandeAccompagnement, FicheGeneree, QuizGenere
 
 Difficulte = Literal["facile", "moyen", "difficile"]
 
@@ -130,3 +130,67 @@ def generer_fiche(
     llm=partial(appeler_llm, schema=FicheGeneree),
 ) -> FicheGeneree:
     return _generer(construire_prompt_fiche(texte[: settings.max_chars]), FicheGeneree, llm)
+
+
+def _situation(demande: DemandeAccompagnement) -> str:
+    """La situation de l'apprenant, en texte lisible par le LLM."""
+    lignes = ["Signaux observés :"]
+    lignes += [f"- {s}" for s in demande.signaux]
+    if demande.progression_pct is not None:
+        moyenne = (
+            f" (moyenne de la promotion : {demande.moyenne_promotion_pct} %)"
+            if demande.moyenne_promotion_pct is not None else ""
+        )
+        lignes.append(f"\nCompétences du référentiel acquises : {demande.progression_pct} %{moyenne}")
+
+    for b in demande.briefs:
+        etat = "en retard" if b.statut == "en_retard" else "en cours"
+        lignes.append(f"\nBrief « {b.titre} » ({etat}, échéance : {b.date_limite})")
+        if b.description:
+            lignes.append(f"Sujet : {b.description}")
+        if b.modalites_evaluation:
+            lignes.append(f"Modalités d'évaluation : {b.modalites_evaluation}")
+        if b.livrables_attendus:
+            lignes.append(f"Livrables attendus : {b.livrables_attendus}")
+
+    if demande.competences_non_acquises:
+        lignes.append("\nCompétences non acquises dont l'échéance est passée :")
+        for c in demande.competences_non_acquises:
+            niveau = f" — niveau {c.niveau}" if c.niveau else ""
+            detail = f" : {c.description}" if c.description else ""
+            brief = f" (brief « {c.brief} »)" if c.brief else ""
+            lignes.append(f"- {c.competence}{niveau}{detail}{brief}")
+
+    if demande.commentaires_formateur:
+        lignes.append("\nCommentaires du formateur sur les évaluations précédentes :")
+        lignes += [f"- {c}" for c in demande.commentaires_formateur]
+    return "\n".join(lignes)
+
+
+def construire_prompt_accompagnement(demande: DemandeAccompagnement) -> str:
+    return (
+        "Tu es un conseiller pédagogique dans une formation par compétences. "
+        "Un apprenant montre des signes de difficulté. À partir de sa situation "
+        "ci-dessous, aide son formateur à l'accompagner. Réponds en français.\n\n"
+        "Règles :\n"
+        '- "diagnostic" : deux ou trois phrases factuelles sur ce qui se passe et '
+        "les causes probables, sans juger l'apprenant.\n"
+        '- "suggestions_formateur" : trois à cinq actions concrètes pour le '
+        "formateur (entretien, découpage d'un brief en étapes, ressource, délai…), "
+        'chacune avec un "detail" qui explique comment faire.\n'
+        '- "plan_apprenant" : un plan que le formateur pourra transmettre à '
+        "l'apprenant. \"message\" l'encourage en le vouvoyant, sans parler de "
+        'décrochage ni de risque. "etapes" : trois à six étapes concrètes, dans '
+        "l'ordre, qui s'appuient sur le sujet, les modalités d'évaluation et les "
+        'livrables attendus des briefs ; "brief" indique le titre du brief concerné.\n'
+        "- Priorise les briefs en retard et les compétences non acquises.\n"
+        "- Base-toi uniquement sur les informations fournies, n'invente aucun fait.\n\n"
+        f"{_situation(demande)[: settings.max_chars]}"
+    )
+
+
+def generer_accompagnement(
+    demande: DemandeAccompagnement,
+    llm=partial(appeler_llm, schema=AccompagnementGenere),
+) -> AccompagnementGenere:
+    return _generer(construire_prompt_accompagnement(demande), AccompagnementGenere, llm)
