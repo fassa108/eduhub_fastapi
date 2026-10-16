@@ -15,10 +15,18 @@ from app.generation import (
     GenerationInvalide,
     LLMIndisponible,
     generer_accompagnement,
+    repondre_chat,
     generer_fiche,
     generer_quiz,
 )
-from app.schemas import AccompagnementGenere, DemandeAccompagnement, FicheGeneree, QuizGenere
+from app.schemas import (
+    AccompagnementGenere,
+    DemandeAccompagnement,
+    DemandeChat,
+    FicheGeneree,
+    QuizGenere,
+    ReponseChat,
+)
 from app.validation import (
     ErreurValidation,
     lire_fichier_valide,
@@ -121,3 +129,8 @@ def generate_fiche(
 )
 def generate_accompagnement(demande: DemandeAccompagnement):
     return generer_accompagnement(demande)
+
+
+@app.post("/chat", response_model=ReponseChat, dependencies=[Depends(verifier_jeton)])
+def chat(demande: DemandeChat):
+    return repondre_chat(demande)

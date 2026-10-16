@@ -87,3 +87,50 @@ class AccompagnementGenere(BaseModel):
     diagnostic: str = Field(min_length=1)
     suggestions_formateur: list[SuggestionFormateur] = Field(min_length=1)
     plan_apprenant: PlanApprenant
+
+
+# ─── Assistant de l'apprenant (chat) ─────────────────────────────────────────
+
+class ModuleChat(BaseModel):
+    nom: str = Field(min_length=1, max_length=255)
+    competences: list[str] = Field(default=[], max_length=60)
+
+
+class BriefChat(BaseModel):
+    titre: str = Field(min_length=1, max_length=255)
+    module: str = Field(default="", max_length=255)
+    date_limite: str = Field(default="", max_length=40)
+    rendu: bool = False
+    description: str = Field(default="", max_length=4000)
+    contexte: str = Field(default="", max_length=4000)
+    modalites_pedagogiques: str = Field(default="", max_length=3000)
+    modalites_evaluation: str = Field(default="", max_length=3000)
+    criteres_performance: str = Field(default="", max_length=3000)
+    livrables_attendus: str = Field(default="", max_length=3000)
+    competences_visees: list[str] = Field(default=[], max_length=30)
+
+
+class ContexteChat(BaseModel):
+    """Contexte pédagogique fourni par Django (anonymisé : ni nom ni email)."""
+
+    formation: str = Field(min_length=1, max_length=255)
+    description_formation: str = Field(default="", max_length=2000)
+    modules: list[ModuleChat] = Field(default=[], max_length=40)
+    brief: BriefChat | None = None
+    competences_non_acquises: list[str] = Field(default=[], max_length=30)
+    commentaires_formateur: list[str] = Field(default=[], max_length=10)
+
+
+class MessageChat(BaseModel):
+    role: Literal["apprenant", "assistant"]
+    contenu: str = Field(min_length=1, max_length=6000)
+
+
+class DemandeChat(BaseModel):
+    contexte: ContexteChat
+    historique: list[MessageChat] = Field(default=[], max_length=10)
+    question: str = Field(min_length=1, max_length=1000)
+
+
+class ReponseChat(BaseModel):
+    reponse: str = Field(min_length=1)

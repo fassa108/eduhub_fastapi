@@ -41,6 +41,7 @@ Toutes les valeurs se règlent dans `.env` (voir `.env.example`) ; les valeurs p
 | `SERVICE_TOKEN` | Jeton partagé avec Django | — |
 | `LLM_API_KEY` | Clé de l'API Gemini (Google AI Studio) | — |
 | `LLM_MODEL` | Modèle Gemini utilisé (en production : un Flash plus récent, en tier payant) | gemini-3.1-flash-lite |
+| `LLM_MODELES_SECOURS` | Modèles essayés dans l'ordre si le principal est surchargé ou indisponible (503, 429, 500), séparés par des virgules | gemini-3.5-flash-lite,gemini-2.5-flash-lite |
 | `LLM_DELAI_S` | Délai maximal d'une réponse du LLM, en secondes | 60 |
 | `TAILLE_MAX_MO` | Taille maximale d'un fichier | 10 |
 | `NB_FICHIERS_MAX` | Nombre maximal de fichiers par requête | 5 |
