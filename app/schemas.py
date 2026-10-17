@@ -134,3 +134,74 @@ class DemandeChat(BaseModel):
 
 class ReponseChat(BaseModel):
     reponse: str = Field(min_length=1)
+
+
+# ─── Rapports (promotion, bilan individuel) ──────────────────────────────────
+
+class IndicateurRapport(BaseModel):
+    libelle: str = Field(min_length=1, max_length=120)
+    valeur: str = Field(max_length=60)
+
+
+class PointEvolution(BaseModel):
+    semaine: str = Field(max_length=20)
+    pct: int = Field(ge=0, le=100)
+
+
+class CompetenceRapport(BaseModel):
+    competence: str = Field(min_length=1, max_length=255)
+    niveau: str = Field(default="", max_length=150)
+    module: str = Field(default="", max_length=255)
+    # Promotion : part des apprenants concernés qui l'ont validée ; bilan : acquise ou non
+    pct: int | None = Field(default=None, ge=0, le=100)
+    acquise: bool | None = None
+
+
+class ApprenantRapport(BaseModel):
+    """Apprenant pseudonymisé par Django : « Apprenant N », sans nom ni email."""
+
+    reference: str = Field(pattern=r"^Apprenant \d{1,4}$")
+    progression_pct: int = Field(ge=0, le=100)
+    rendus: int = Field(ge=0)
+    attendus: int = Field(ge=0)
+    retards: int = Field(ge=0)
+    niveau: str = Field(default="", max_length=60)
+    signaux: list[str] = Field(default=[], max_length=10)
+
+
+class BriefRapport(BaseModel):
+    titre: str = Field(min_length=1, max_length=255)
+    date_limite: str = Field(max_length=40)
+    statut: str = Field(max_length=40)
+    en_retard: bool = False
+
+
+class DemandeRapport(BaseModel):
+    """Chiffres calculés par Django : l'IA rédige, elle ne calcule rien."""
+
+    type: Literal["promotion", "apprenant"]
+    formation: str = Field(min_length=1, max_length=255)
+    promotion: str = Field(min_length=1, max_length=255)
+    periode: str = Field(default="", max_length=80)
+    cloturee: bool = False
+    indicateurs: list[IndicateurRapport] = Field(min_length=1, max_length=30)
+    evolution: list[PointEvolution] = Field(default=[], max_length=60)
+    competences: list[CompetenceRapport] = Field(default=[], max_length=150)
+    apprenants: list[ApprenantRapport] = Field(default=[], max_length=100)
+    briefs: list[BriefRapport] = Field(default=[], max_length=60)
+    signaux: list[str] = Field(default=[], max_length=10)
+    commentaires_formateur: list[str] = Field(default=[], max_length=10)
+
+
+class ApprenantASuivre(BaseModel):
+    apprenant: str = Field(min_length=1)
+    constat: str = Field(min_length=1)
+    action: str = Field(min_length=1)
+
+
+class RapportGenere(BaseModel):
+    synthese: str = Field(min_length=1)
+    points_forts: list[str] = []
+    points_vigilance: list[str] = []
+    apprenants_a_suivre: list[ApprenantASuivre] = []
+    recommandations: list[str] = Field(min_length=1)

@@ -17,14 +17,17 @@ from app.generation import (
     generer_accompagnement,
     repondre_chat,
     generer_fiche,
+    generer_rapport,
     generer_quiz,
 )
 from app.schemas import (
     AccompagnementGenere,
     DemandeAccompagnement,
     DemandeChat,
+    DemandeRapport,
     FicheGeneree,
     QuizGenere,
+    RapportGenere,
     ReponseChat,
 )
 from app.validation import (
@@ -134,3 +137,8 @@ def generate_accompagnement(demande: DemandeAccompagnement):
 @app.post("/chat", response_model=ReponseChat, dependencies=[Depends(verifier_jeton)])
 def chat(demande: DemandeChat):
     return repondre_chat(demande)
+
+
+@app.post("/generate/rapport", response_model=RapportGenere, dependencies=[Depends(verifier_jeton)])
+def generate_rapport(demande: DemandeRapport):
+    return generer_rapport(demande)
